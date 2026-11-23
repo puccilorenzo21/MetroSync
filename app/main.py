@@ -1791,9 +1791,9 @@ class AcousticPrecisionEngine:
             return self.snap_onset_micro(skipped, w_start, w_end - min_dur, max_shift=0.015, max_shift_fwd=0.008)
         return round(w_start, 3)
 
-    def find_onset_after_internal_dip(self, w_start: float, w_end: float, min_tail_dur: float = 0.14, min_dip_ms: int = 18) -> float:
+    def find_onset_after_internal_dip(self, w_start: float, w_end: float, min_tail_dur: float = 0.14, min_dip_ms: int = 18, min_span: float = 0.58) -> float:
         """Se una parola breve/stirata include un avanzo vocale precedente separato da un calo/pausa interna, aggancia l'attacco reale dopo la pausa."""
-        if self.num_frames == 0 or (w_end - w_start) < 0.58:
+        if self.num_frames == 0 or (w_end - w_start) < min_span:
             return round(w_start, 3)
         f_s = self._time_to_frame(w_start + 0.08)
         f_e = self._time_to_frame(w_end - min_tail_dur)
@@ -1828,7 +1828,14 @@ class AcousticPrecisionEngine:
                 dip_run = 0
         return round(w_start, 3)
 
-    def expand_phrase_onset(self, ctc_t: float, min_t: float, max_lookback: float = 0.50, max_t: float = None) -> float:
+    def expand_phrase_onset(
+        self,
+        ctc_t: float,
+        min_t: float,
+        max_lookback: float = 0.50,
+        max_t: float = None,
+        stop_at_valley: bool = False,
+    ) -> float:
         """Recupera eventuali respiri vocali o sillabe morbide all'attacco di una frase ed elimina il silenzio iniziale."""
         if self.num_frames == 0:
             return round(ctc_t, 3)
@@ -1854,11 +1861,22 @@ class AcousticPrecisionEngine:
         loc_fl_tot = float(np.median(self.local_floor_total[fmin:fc + 1]))
         loc_dyn = max(loc_pk_tot - loc_fl_tot, 0.15 * dyn_tot)
         active_th = loc_fl_tot + 0.16 * loc_dyn
+        e_atk = float(np.percentile(self.env_total[fc:min(self.num_frames, fc + 45)], 90)) if stop_at_valley else 0.0
+        min_e = float(self.env_total[fc])
+        min_f = fc
 
         last_act = fc
         silent_run = 0
         for cf in range(fc, fmin - 1, -1):
-            is_act = (self.env_total[cf] >= active_th) or (self.env_sustain[cf] >= self.local_floor_sustain[cf] + 0.14 * dyn_sus)
+            cur_e = float(self.env_total[cf])
+            if stop_at_valley:
+                if cur_e < min_e:
+                    min_e = cur_e
+                    min_f = cf
+                elif (fc - cf) >= 12 and min_e <= max(loc_fl_tot + 0.14 * loc_dyn, 0.48 * e_atk) and cur_e > max(min_e * 1.45, active_th):
+                    last_act = max(last_act, min_f)
+                    break
+            is_act = (cur_e >= active_th) or (self.env_sustain[cf] >= self.local_floor_sustain[cf] + 0.14 * dyn_sus)
             if is_act:
                 last_act = cf
                 silent_run = 0
@@ -1919,8 +1937,14 @@ class AcousticPrecisionEngine:
             dip = 0
             for cf in range(f_ctc, f_max):
                 is_on = (self.env_sustain[cf] >= hold_th_sus) or (self.env_total[cf] >= fl_tot + 0.22 * loc_dyn_tot)
-                if dip >= 15 and self.odf[cf] >= 0.45:
-                    break
+                if cf >= f_ctc and self.odf[cf] >= 0.45:
+                    if dip >= 15:
+                        break
+                    pre_min = float(np.min(self.env_total[max(f_ctc, cf - 14):cf + 1]))
+                    post_pk = float(np.max(self.env_total[cf:min(self.num_frames, cf + 18)]))
+                    if post_pk >= 1.55 * max(0.20, pre_min):
+                        last_f = min(last_f, max(f_ctc, cf - 12))
+                        break
                 if is_on:
                     last_f = cf
                     dip = 0
@@ -2032,6 +2056,73 @@ class AcousticPrecisionEngine:
             self.snap_onset_micro(self._frame_to_time(f0 + best_s), t0, t1, max_shift=0.015, max_shift_fwd=0.008),
             min(round(t1, 3), self._frame_to_time(f0 + best_e + 15)),
         )
+
+    def find_all_gap_bursts(self, t0: float, t1: float, min_dur_ms: int = 50, merge_gap_ms: int = 45) -> list:
+        """Restituisce tutte le raffiche vocali/sibilanti distinte nella pausa [t0, t1], escludendo la coda iniziale a t0."""
+        if self.num_frames == 0:
+            return []
+        f0, f1 = self._time_to_frame(t0), self._time_to_frame(t1)
+        if f1 - f0 < max(70, min_dur_ms + 15):
+            return []
+        dyn_tot = max(self.global_peak_total - self.global_floor_total, 0.20)
+        dyn_sus = max(self.global_peak_sustain - self.global_floor_sustain, 0.20)
+        th_tot = self.local_floor_total[f0:f1] + max(0.030, 0.055 * dyn_tot)
+        th_sus = self.local_floor_sustain[f0:f1] + max(0.025, 0.050 * dyn_sus)
+        act = (self.env_total[f0:f1] >= th_tot) | (self.env_sustain[f0:f1] >= th_sus)
+
+        spans = []
+        n_act = len(act)
+        i = 0
+        while i < n_act:
+            if act[i]:
+                s = i
+                while i < n_act:
+                    if act[i]:
+                        i += 1
+                    else:
+                        nxt_rel = np.flatnonzero(act[i:min(n_act, i + merge_gap_ms)])
+                        if len(nxt_rel) > 0:
+                            i += int(nxt_rel[0])
+                        else:
+                            break
+                if (i - s) >= min_dur_ms:
+                    spans.append((s, i))
+            else:
+                i += 1
+
+        if not spans:
+            return []
+
+        # Se la prima raffica è incollata a t0 (coda del core precedente) e contiene un calo interno prima del nuovo attacco, taglia la coda
+        s0, e0 = spans[0]
+        if s0 <= 20 and (e0 - s0) >= 180:
+            sub0 = self.env_total[f0 + s0:f0 + e0]
+            e_start0 = float(sub0[0])
+            # Cerca il minimo locale nei primi 420ms seguito da una nuova salita
+            scan_lim = min(len(sub0) - 40, 420)
+            if scan_lim > 40 and e_start0 >= 0.25:
+                v_rel = int(np.argmin(sub0[:scan_lim]))
+                v_val = float(sub0[v_rel])
+                post_pk = float(np.max(sub0[v_rel:min(len(sub0), v_rel + 250)]))
+                if v_rel >= 15 and v_val <= 0.35 * e_start0 and post_pk >= max(v_val * 2.0, 0.20):
+                    spans[0] = (s0 + v_rel + 1, e0)
+
+        valid = []
+        for idx_sp, (s, e) in enumerate(spans):
+            if (e - s) < min_dur_ms:
+                continue
+            # Scarta la coda/respiro incollata al confine sinistro t0 quando segue almeno una pausa e/o un vero ad-lib più avanti
+            if s <= 20 and e < 420 and (len(spans) >= 2 or float(self.env_total[f0]) >= float(np.max(self.env_total[f0 + s:f0 + e])) * 0.72):
+                continue
+            pk = float(np.max(self.env_total[f0 + s:f0 + e]))
+            loc_fl = float(np.median(self.local_floor_total[f0 + s:f0 + e]))
+            if pk < max(self.global_floor_total + 0.055 * dyn_tot, loc_fl * 4.0 + 0.035):
+                continue
+            bs = self.snap_onset_micro(self._frame_to_time(f0 + s), t0, t1, max_shift=0.015, max_shift_fwd=0.008)
+            be = min(round(t1, 3), self._frame_to_time(f0 + e + 15))
+            if be >= bs + 0.045:
+                valid.append((bs, be))
+        return valid
 
 
 def refine_vocal_onset_transient(
@@ -2626,15 +2717,35 @@ class HybridCTCAligner:
             adlib_mask = [False] * len(words)
             if not seg_info["is_bg"] and "(" in text and words:
                 p_depth = 0
-                tmp_mask = []
-                for w_tok in words:
+                groups = []
+                cur_grp = None
+                tmp_mask = [False] * len(words)
+                for wi_tok, w_tok in enumerate(words):
                     opens = w_tok.count("(")
                     closes = w_tok.count(")")
                     is_ad = (p_depth > 0) or w_tok.lstrip().startswith("(")
-                    tmp_mask.append(is_ad)
+                    if is_ad:
+                        if cur_grp is None:
+                            cur_grp = [wi_tok, wi_tok]
+                        else:
+                            cur_grp[1] = wi_tok
+                    else:
+                        if cur_grp is not None:
+                            groups.append(tuple(cur_grp))
+                            cur_grp = None
+                    tmp_mask[wi_tok] = is_ad
                     p_depth = max(0, p_depth + opens - closes)
-                if any(not m_val for m_val in tmp_mask):
-                    adlib_mask = tmp_mask
+                if cur_grp is not None:
+                    groups.append(tuple(cur_grp))
+
+                first_core_idx = next((idx_w for idx_w, m_v in enumerate(tmp_mask) if not m_v), -1)
+                if first_core_idx != -1:
+                    # I gruppi tra parentesi iniziali (prima del testo core) o lunghi (>=5 parole) vanno nel core di Pass 1A
+                    for g_s, g_e in groups:
+                        g_len = g_e - g_s + 1
+                        if g_s > first_core_idx and g_len <= 4:
+                            for idx_w in range(g_s, g_e + 1):
+                                adlib_mask[idx_w] = True
 
             core_words = [w for w, is_ad in zip(words, adlib_mask) if not is_ad] or words
             core_text = " ".join(core_words).strip()
@@ -3075,9 +3186,13 @@ class HybridCTCAligner:
                 for k in range(1, len(wl)):
                     igap = wl[k]["start"] - wl[k - 1]["end"]
                     wk_sc = float(wl[k].get("score", 0.5))
-                    if igap >= 0.12:
+                    if igap >= 0.22:
                         wl[k]["start"] = eng_ref.expand_phrase_onset(
-                            wl[k]["start"], wl[k - 1]["end"] + 0.02, max_t=wl[k]["end"]
+                            wl[k]["start"],
+                            wl[k - 1]["end"] + 0.02,
+                            max_lookback=min(0.18, 0.55 * igap),
+                            max_t=wl[k]["end"],
+                            stop_at_valley=True,
                         )
                     else:
                         sh_b = 0.018 if wk_sc >= 0.70 else 0.030
@@ -3100,6 +3215,21 @@ class HybridCTCAligner:
                         wl[k - 1]["end"] = round(wl[k]["start"], 3)
                     elif ng < 0:
                         wl[k - 1]["end"] = round(wl[k]["start"], 3)
+                    elif 0.025 <= ng <= 0.18 and (wl[k - 1]["end"] - wl[k - 1]["start"]) < 0.14 and eng_ref.num_frames > 0:
+                        # Estendi vocali/parole brevi lungo la coda sonora reale fino al calo o all'attacco di wl[k]
+                        f_cur = eng_ref._time_to_frame(wl[k - 1]["end"])
+                        f_lim = min(eng_ref.num_frames, eng_ref._time_to_frame(wl[k]["start"] - 0.012))
+                        dyn_tot_w = max(eng_ref.global_peak_total - eng_ref.global_floor_total, 0.20)
+                        ext_f = f_cur
+                        for cf_w in range(f_cur, f_lim):
+                            if float(eng_ref.odf[cf_w]) >= 0.45 and cf_w > f_cur + 12:
+                                break
+                            if float(eng_ref.env_total[cf_w]) >= float(eng_ref.local_floor_total[cf_w]) + 0.16 * dyn_tot_w:
+                                ext_f = cf_w + 1
+                            else:
+                                break
+                        if ext_f > f_cur + 12:
+                            wl[k - 1]["end"] = min(round(wl[k]["start"], 3), eng_ref._frame_to_time(ext_f))
                     elif ng >= 0.12:
                         has_mid_adlib_after = (
                             wl[k - 1].get("orig_wi") is not None
@@ -3203,7 +3333,7 @@ class HybridCTCAligner:
                 w0_dur = w0_b["end"] - w0_b["start"]
                 tail_med = float(np.median([w["end"] - w["start"] for w in res_b[blk[0]][1:]]))
                 is_stretched_head = (
-                    (len(w0_clean) <= 5 and w0_dur >= 0.85)
+                    (len(w0_clean) <= (7 if has_pending_bg_before else 5) and w0_dur >= (0.78 if has_pending_bg_before else 0.85))
                     or (len(res_b[blk[0]]) >= 3 and len(w0_clean) <= 8 and w0_dur >= max(0.75 if has_pending_bg_before else 0.95, 2.2 * tail_med))
                 )
                 if is_stretched_head:
@@ -3232,7 +3362,9 @@ class HybridCTCAligner:
                     sc_line_ext = float(np.mean([w["score"] for w in wl_ext_l]))
                     max_wd_ext = max((w["end"] - w["start"]) for w in wl_ext_l)
                     if (wl_ext_l[-1]["end"] > win_e + 0.15 and max_wd_ext < 1.35
-                            and sc_tail_ext > sc_tail_orig + 0.08 and sc_line_ext >= sc_line_orig - 0.02):
+                            and sc_line_ext >= sc_line_orig - 0.02
+                            and (sc_tail_ext > sc_tail_orig + 0.04
+                                 or (wl_ext_l[-1]["end"] > win_e + 0.25 and float(wl_ext_l[-1]["score"]) >= max(0.18, float(wl_orig_l[-1]["score"]) + 0.03)))):
                         res_b[li_b] = wl_ext_l
                         win_e = ext_we_cand
 
@@ -3344,17 +3476,23 @@ class HybridCTCAligner:
 
             ext_we_cand = 0.0
             if (b_idx + 1 < len(blocks_1a) and k_between_next == 0 and not has_pending_bg_after
-                    and not lines_info[last_i].get("has_trailing_parens") and not lines_info[last_i]["is_bg"]
-                    and len(lines_info[last_i]["words"]) >= 3 and (next_start_limit - win_e) >= 0.70):
-                a_nxt_bound = min(total_audio_sec, next_start_limit - 0.15)
+                    and not lines_info[last_i]["is_bg"]
+                    and len(lines_info[last_i]["words"]) >= 3 and (next_start_limit - win_e) >= 0.30):
+                a_nxt_bound = min(total_audio_sec, next_start_limit - 0.05)
                 tail_anchor_e = max(a_last[1], a_last[3])
                 ext_isls = [
                     isl for isl in islands
-                    if isl[0] >= (win_e - 0.20) and isl[1] <= (a_nxt_bound - 0.20)
+                    if isl[0] >= (win_e - 0.20) and isl[1] <= (a_nxt_bound - 0.15)
                     and (isl[0] - tail_anchor_e) <= 2.50
                 ]
                 if ext_isls:
                     ext_we_cand = min(a_nxt_bound, ext_isls[0][1] + 1.25)
+                else:
+                    gap_b = acoustic_engine.find_strong_burst_in_gap(
+                        max(win_s + 0.25, win_e - 0.25), a_nxt_bound, min_dur=0.14
+                    )
+                    if gap_b and (gap_b[0] - tail_anchor_e) <= 2.50:
+                        ext_we_cand = min(a_nxt_bound, max(win_e + 0.50, gap_b[1] + 0.20))
 
             b_first_tup = ("confirmed", a_first[0], a_first[1], a_first[2], a_first[3])
             out_blk = _align_and_refine_block(
@@ -3608,6 +3746,49 @@ class HybridCTCAligner:
                     final_lines[ui] = [{"word": w, "start": round(gs + kk * dt, 3), "end": round(gs + (kk + 1) * dt, 3), "score": 0.0, "orig_wi": orig_wis[kk]} for kk, w in enumerate(wl_words)]
             p_idx = run_end
 
+        # Recupero post-Pass-1A/1B: se una riga ha parole finali ripetute/posticipate dentro un vuoto >=0.55s scoperto dopo l'allineamento della riga successiva
+        for bi in range(len(lines_info) - 1):
+            wl_cur = final_lines[bi]
+            wl_nxt = final_lines[bi + 1]
+            if (not wl_cur or not wl_nxt or len(wl_cur) < 3
+                    or lines_info[bi]["is_bg"] or lines_info[bi + 1]["is_bg"]
+                    or lines_info[bi].get("has_trailing_parens")):
+                continue
+            cur_e = float(wl_cur[-1]["end"])
+            nxt_s = float(wl_nxt[0]["start"])
+            if nxt_s - cur_e < 0.55:
+                continue
+            gap_burst = acoustic_engine.find_strong_burst_in_gap(cur_e + 0.12, nxt_s - 0.08, min_dur=0.14)
+            if not gap_burst or (gap_burst[0] - cur_e) > 2.20:
+                continue
+            w_s_rec = max(0.0, float(wl_cur[0]["start"]) - 0.06)
+            w_e_rec = min(total_audio_sec, nxt_s - 0.03)
+            res_rec = _align_block_ctc([bi], w_s_rec, w_e_rec)
+            if not res_rec or bi not in res_rec or len(res_rec[bi]) != len(wl_cur):
+                continue
+            wl_rec = res_rec[bi]
+            sc_orig_m = float(np.mean([float(x.get("score", 0.0)) for x in wl_cur]))
+            sc_rec_m = float(np.mean([float(x.get("score", 0.0)) for x in wl_rec]))
+            prev_orig_s = float(wl_cur[-2].get("score", 0.0))
+            prev_rec_s = float(wl_rec[-2].get("score", 0.0))
+            last_orig_s = float(wl_cur[-1].get("score", 0.0))
+            last_rec_s = float(wl_rec[-1].get("score", 0.0))
+            if (wl_rec[-1]["start"] >= gap_burst[0] - 0.12
+                    and wl_rec[-1]["end"] <= nxt_s - 0.015
+                    and (wl_rec[-1]["end"] - wl_rec[-1]["start"]) <= 1.25
+                    and wl_rec[-2]["end"] <= gap_burst[0] - 0.08
+                    and prev_rec_s >= prev_orig_s - 0.05
+                    and last_rec_s >= max(0.20, last_orig_s + 0.03)
+                    and sc_rec_m >= sc_orig_m - 0.01):
+                p_rec_lim = max((final_lines[p][-1]["end"] for p in range(bi - 1, -1, -1) if final_lines[p]), default=0.0)
+                ref_rec = _refine_block_words(
+                    {bi: wl_rec}, [bi], acoustic_engine, w_s_rec,
+                    ("rec", wl_cur[0]["start"], wl_rec[-1]["end"], w_s_rec, w_e_rec),
+                    p_rec_lim, nxt_s, False, False,
+                )
+                if ref_rec and bi in ref_rec:
+                    final_lines[bi] = ref_rec[bi]
+
         # PASS 2: Allineamento Background / Echo / Gap Ad-Libs (gestendo anche run consecutivi di {bg})
         li_idx = 0
         while li_idx < len(lines_info):
@@ -3778,13 +3959,26 @@ class HybridCTCAligner:
                     wl_a[0]["start"] = round(ws_a, 3)
                 if wl_a[-1]["end"] > we_a:
                     wl_a[-1]["end"] = round(we_a, 3)
+                w0_cap = max(ws_a + 0.025, wl_a[0]["end"] - 0.040) if wl_a[0]["end"] > ws_a + 0.045 else wl_a[0]["start"]
                 wl_a[0]["start"] = acoustic_engine.snap_onset_micro(
-                    wl_a[0]["start"], ws_a, max(ws_a + 0.03, wl_a[-1]["end"] - 0.03), max_shift=0.025, max_shift_fwd=0.020
+                    wl_a[0]["start"], ws_a, max(ws_a + 0.025, min(w0_cap, wl_a[-1]["end"] - 0.035)), max_shift=0.025, max_shift_fwd=0.020
                 )
-                return smooth_and_clamp_words(
+                out_smooth = smooth_and_clamp_words(
                     [{"word": x["word"], "start": x["start"], "end": x["end"]} for x in wl_a],
                     min_word_dur=0.035,
                 )
+                if len(out_smooth) >= 2 and (out_smooth[0]["end"] - out_smooth[0]["start"]) < 0.038:
+                    need_d = 0.040 - (out_smooth[0]["end"] - out_smooth[0]["start"])
+                    back_room = max(0.0, out_smooth[0]["start"] - ws_a)
+                    take_pre = min(back_room, need_d)
+                    if take_pre > 0:
+                        out_smooth[0]["start"] = round(out_smooth[0]["start"] - take_pre, 3)
+                        need_d -= take_pre
+                    if need_d > 0 and (out_smooth[1]["end"] - out_smooth[1]["start"]) > 0.075:
+                        steal = min(need_d, (out_smooth[1]["end"] - out_smooth[1]["start"]) - 0.055)
+                        out_smooth[0]["end"] = round(out_smooth[0]["end"] + steal, 3)
+                        out_smooth[1]["start"] = out_smooth[0]["end"]
+                return out_smooth
             return None
 
         for bi, li in enumerate(lines_info):
@@ -3826,6 +4020,36 @@ class HybridCTCAligner:
                 right_t = rebuilt[next_core_idx]["start"] if next_core_idx >= 0 else next_line_start
                 right_t = max(right_t, left_t + 0.04)
 
+                # Se l'ultima parola core è allungata perché ha assorbito l'ad-lib finale (es. "ehi (Ahah)"), recupera la separazione sul calo interno
+                ad_hi_pre = min(right_t, next_line_start - 0.008)
+                if prev_core_idx >= 0 and next_core_idx < 0:
+                    prev_s_c = rebuilt[prev_core_idx]["start"]
+                    prev_e_cur = rebuilt[prev_core_idx]["end"]
+                    post_bursts = acoustic_engine.find_all_gap_bursts(left_t, ad_hi_pre, min_dur_ms=50, merge_gap_ms=45) if (ad_hi_pre - left_t) >= 0.16 else []
+                    if (prev_e_cur - prev_s_c) >= 0.42 and ((ad_hi_pre - left_t) < 0.22 * n_ad or not post_bursts):
+                        # Prima controlla se una raffica distinta alla fine di prev_core è già separata da silenzio/calo (es. L39 "ehi (Ahah)")
+                        split_t = -1.0
+                        in_bursts = acoustic_engine.find_all_gap_bursts(
+                            prev_s_c + 0.14, min(ad_hi_pre, prev_e_cur + 0.15), min_dur_ms=50, merge_gap_ms=45
+                        )
+                        if in_bursts and in_bursts[-1][0] > prev_s_c + 0.18 and in_bursts[-1][0] < left_t - 0.08:
+                            split_t = in_bursts[-1][0]
+                            prev_e_cur = max(prev_e_cur, in_bursts[-1][1])
+                        else:
+                            # Raffica continua senza pausa lunga: ritaglia eventuale coda silenziosa e cerca calo interno nella parte attiva
+                            active_cap = min(prev_e_cur, in_bursts[-1][1]) if in_bursts else prev_e_cur
+                            cand_sp = acoustic_engine.find_onset_after_internal_dip(
+                                prev_s_c, active_cap, min_tail_dur=0.07, min_dip_ms=12, min_span=0.38
+                            )
+                            if cand_sp > prev_s_c + 0.14 and cand_sp <= active_cap - 0.05:
+                                split_t = cand_sp
+                                prev_e_cur = max(prev_e_cur, active_cap)
+                        if split_t > prev_s_c + 0.14 and split_t <= prev_e_cur - 0.05:
+                            rebuilt[prev_core_idx]["end"] = round(split_t - 0.010, 3)
+                            left_t = rebuilt[prev_core_idx]["end"]
+                            right_t = max(prev_e_cur, left_t + 0.06)
+                            ad_hi_pre = min(right_t, next_line_start - 0.008)
+
                 # Garantisci almeno 50ms/parola senza mai invadere la riga successiva o il core precedente
                 min_ad_span = min(0.28, 0.055 * n_ad)
                 if right_t - left_t < min_ad_span and prev_core_idx >= 0:
@@ -3836,22 +4060,60 @@ class HybridCTCAligner:
                         left_t = rebuilt[prev_core_idx]["end"]
 
                 ctc_ad = None
-                if (right_t - left_t) >= 0.30 and left_t < next_line_start - 0.15:
-                    ctc_ad = _align_inline_adlib_span(ad_slice, left_t, min(right_t, next_line_start - 0.008))
+                ad_hi_bound = min(right_t, next_line_start - 0.008)
+                if (ad_hi_bound - left_t) >= 0.30 and left_t < next_line_start - 0.15:
+                    ctc_ad = _align_inline_adlib_span(ad_slice, left_t, ad_hi_bound)
 
                 if ctc_ad and len(ctc_ad) == n_ad:
                     placed = ctc_ad
                 else:
-                    pack_end = min(right_t, left_t + max(min_ad_span, min(0.36, 0.14 * n_ad)))
-                    dt_a = max(0.030, (pack_end - left_t) / n_ad)
-                    placed = [
-                        {
-                            "word": aw,
-                            "start": round(left_t + kk * dt_a, 3),
-                            "end": round(min(right_t, left_t + (kk + 1) * dt_a), 3),
-                        }
-                        for kk, aw in enumerate(ad_slice)
-                    ]
+                    bursts = acoustic_engine.find_all_gap_bursts(left_t, ad_hi_bound, min_dur_ms=50, merge_gap_ms=45) if (ad_hi_bound - left_t) >= 0.16 else []
+                    if len(bursts) > n_ad and n_ad >= 2:
+                        # Preferisci la finestra contigua di n_ad raffiche più staccata dal respiro di left_t o con span più compatto/posteriore
+                        cand_wins = [bursts[idx_b:idx_b + n_ad] for idx_b in range(len(bursts) - n_ad + 1)]
+                        best_win = min(
+                            cand_wins,
+                            key=lambda w: ((w[-1][1] - w[0][0]) + (0.45 if w[0][0] <= left_t + 0.42 and len(cand_wins) >= 2 else 0.0)),
+                        )
+                        bursts = best_win
+                    if len(bursts) == n_ad:
+                        placed = [
+                            {"word": aw, "start": round(bs, 3), "end": round(be, 3)}
+                            for aw, (bs, be) in zip(ad_slice, bursts)
+                        ]
+                    elif bursts:
+                        if len(bursts) > n_ad and n_ad == 1:
+                            bs, be = max(bursts, key=lambda b: b[1] - b[0])
+                            placed = [{"word": ad_slice[0], "start": round(bs, 3), "end": round(be, 3)}]
+                        else:
+                            b_s = bursts[0][0]
+                            b_e = bursts[-1][1]
+                            ctc_in_b = _align_inline_adlib_span(ad_slice, max(left_t, b_s - 0.04), min(ad_hi_bound, b_e + 0.04)) if (b_e - b_s) >= 0.25 else None
+                            if ctc_in_b and len(ctc_in_b) == n_ad:
+                                placed = ctc_in_b
+                            else:
+                                # Distribuisci le parole sugli archi attivi delle raffiche rilevate proporzionalmente alla lunghezza
+                                tot_w_ch = sum(max(1, len(re.sub(r"[^\w]", "", w))) for w in ad_slice)
+                                span_b = max(0.055 * n_ad, b_e - b_s)
+                                cur_t_b = b_s
+                                placed = []
+                                for kk, aw in enumerate(ad_slice):
+                                    w_ch = max(1, len(re.sub(r"[^\w]", "", aw)))
+                                    d_k = max(0.045, span_b * (w_ch / tot_w_ch)) if kk < n_ad - 1 else max(0.045, b_e - cur_t_b)
+                                    en_k = b_e if kk == n_ad - 1 else min(b_e - 0.045 * (n_ad - 1 - kk), cur_t_b + d_k)
+                                    placed.append({"word": aw, "start": round(cur_t_b, 3), "end": round(max(cur_t_b + 0.040, en_k), 3)})
+                                    cur_t_b = placed[-1]["end"]
+                    else:
+                        pack_end = min(right_t, left_t + max(min_ad_span, min(0.36, 0.14 * n_ad)))
+                        dt_a = max(0.030, (pack_end - left_t) / n_ad)
+                        placed = [
+                            {
+                                "word": aw,
+                                "start": round(left_t + kk * dt_a, 3),
+                                "end": round(min(right_t, left_t + (kk + 1) * dt_a), 3),
+                            }
+                            for kk, aw in enumerate(ad_slice)
+                        ]
                 for kk, p_tok in enumerate(placed):
                     rebuilt[wi + kk] = p_tok
                 wi = wj
