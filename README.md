@@ -1,6 +1,6 @@
 # MetroSync Studio Pro
 
-Applicazione desktop Windows per creare, cercare, scaricare e pubblicare testi sincronizzati **parola per parola** e **riga per riga** compatibili con **Metrolist**, **BetterLyrics / Unison** e **LRCLIB**.
+Applicazione desktop Windows per creare, cercare, scaricare e pubblicare testi sincronizzati **parola per parola** e **riga per riga** compatibili con [**Metrolist**](https://github.com/metrolistgroup/metrolist), **BetterLyrics / Unison** e **LRCLIB**.
 
 ## Funzionalità Principali
 
@@ -46,6 +46,8 @@ py -3.12 app\main.py
 - `tools/` — eseguibili ufficiali `yt-dlp.exe` e `ffmpeg.exe` (scaricati automaticamente su richiesta).
 
 ## Formati Generati e Compatibilità Metrolist
+
+I file generati rispettano le specifiche di [**Metrolist**](https://github.com/metrolistgroup/metrolist) (`https://github.com/metrolistgroup/metrolist`) per la riproduzione karaoke parola per parola e riga per riga:
 
 - **`.lrc` (Metrolist Duet / Normale)**: include header metadati (`[ti:]`, `[ar:]`, `[al:]`, `[au:]`, `[length:]`), tag vocali `{agent:v1}` / `{agent:v2}` / `{bg}` e timing parola per parola `<parola:inizio:fine|...>`.
 - **`.ttml`**: formato Apple Music / BetterLyrics / Metrolist (`itunes:timing="Word"` o `"Line"`).
