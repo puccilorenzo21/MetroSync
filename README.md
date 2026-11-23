@@ -56,3 +56,12 @@ py -3.12 app\main.py
 
 - **Non condividere mai `unison_identity.json`**: contiene la tua chiave privata ECDSA P-256 per pubblicare su Unison. È già escluso automaticamente tramite `.gitignore`.
 - **`config.json`** contiene preferenze locali ed eventuali token personalizzati ed è anch'esso escluso da `.gitignore`.
+
+## Licenza & Obbligo di Citazione
+
+Questo progetto è distribuito gratuitamente sotto **Licenza MIT** ([LICENSE](LICENSE)).
+
+Puoi usare, modificare e ridistribuire il software liberamente, **a condizione di mantenere l'avviso di copyright e citare l'autore originale**:
+
+- **Autore**: `puccilorenzo21`
+- **Repository originale**: https://github.com/puccilorenzo21/MetroSync
