@@ -1,0 +1,37 @@
+# Python & cache
+__pycache__/
+app/__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Build / packaging artifacts
+build/
+dist/
+output/
+tools/
+*.spec
+
+# Dati sensibili e configurazione locale utente
+unison_identity.json
+config.json
+*.lnk
+
+# Pesi modelli Whisper locali (file di grandi dimensioni)
+models/*.pt
+*.pt
+
+# File audio, progetti e test locali
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.ogg
+*.opus
+*.lrc
+*.ttml
+*.lyricsfile.yaml
+*.metro
+testo*.txt

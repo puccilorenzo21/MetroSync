@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>MetroSync Studio Pro</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-dot"></div>
+        <h1>MetroSync <span>Studio Pro</span></h1>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-project" onclick="loadProject()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          Apri Progetto
+        </button>
+        <button id="btnSaveProj" class="btn btn-project" onclick="saveProject()" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          Salva Progetto
+        </button>
+        <button id="btnExportFiles" class="btn btn-project" onclick="openExportModal()" disabled title="Esporta file locali (.lrc Metrolist, .ttml, .lyricsfile.yaml o .txt)">
+          💾 Esporta
+        </button>
+        <div id="hwBadge" class="hw-badge">Rilevamento hardware...</div>
+      </div>
+    </header>
+
+    <nav class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('studio')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+        Studio
+      </button>
+      <button class="tab-btn" onclick="switchTab('settings')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        Impostazioni & AI
+      </button>
+    </nav>
+
+    <!-- TAB 1: STUDIO -->
+    <main id="tabStudio" class="tab-content active">
+      <div class="quickstart-strip">
+        <span class="qs-step"><strong>1.</strong> Scegli l'audio o incolla un link YouTube</span>
+        <span class="qs-arrow">→</span>
+        <span class="qs-step"><strong>2.</strong> Carica un <code>.txt</code> o cerca il testo online</span>
+        <span class="qs-arrow">→</span>
+        <span class="qs-step"><strong>3.</strong> Premi <strong>AVVIA SYNC</strong>, controlla in Anteprima e Pubblica o Esporta</span>
+      </div>
+
+      <section class="card">
+        <h2 class="card-title">1. File Sorgente</h2>
+        <div class="field-row">
+          <label>File Audio (MP3, WAV, M4A, FLAC, OGG) oppure Link YouTube / YouTube Music:</label>
+          <div class="input-browse">
+            <input type="text" id="audioPath" placeholder="Seleziona la traccia audio dal PC..." readonly>
+            <button class="btn btn-secondary" onclick="browseAudio()">Sfoglia...</button>
+          </div>
+          <div class="input-browse" style="margin-top: 6px;">
+            <input type="text" id="youtubeAudioUrl" placeholder="Oppure incolla qui un link YouTube / YouTube Music (scarica in background se serve)..." onkeydown="if(event.key==='Enter'){event.preventDefault();loadYoutubeAudio();}">
+            <button id="btnLoadYoutubeAudio" class="btn btn-orange" onclick="loadYoutubeAudio()" title="Scarica in background l'audio da YouTube tramite yt-dlp e compila i metadati">🎬 Carica da YouTube</button>
+          </div>
+        </div>
+        <div class="field-row" style="margin-bottom: 0;">
+          <label>Testo della Canzone (apri un <code>.txt</code>, cercalo online oppure importa un file già sincronizzato):</label>
+          <div class="input-browse">
+            <input type="text" id="lyricsPath" placeholder="Nessun testo caricato — scegli un file o cerca online..." readonly>
+            <button class="btn btn-secondary" onclick="browseLyrics()" title="Apri un file .txt dal PC (oppure .lrc / .ttml)">Sfoglia (.txt)...</button>
+            <button class="btn btn-cyan-outline" onclick="openSearchLyricsModal()" title="Cerca il testo online e importalo come .txt per la Sync AI oppure scaricalo in formato Metrolist">🔍 Cerca Online</button>
+            <button class="btn btn-purple-outline" onclick="importSyncedLyrics()" title="Carica un file .lrc, .ttml o .yaml già sincronizzato dal PC senza usare l'AI">⚡ Importa Sincronizzato</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title-row">
+          <h2 class="card-title">2. Informazioni Brano (Metadati)</h2>
+          <div class="title-actions">
+            <button class="btn-micro" onclick="openAuthSettings()" title="Guida chiavi, identità Unison e impostazioni di pubblicazione">🔑 Auth &amp; Chiavi</button>
+            <button id="btnAutoFillMeta" class="btn-micro" onclick="autoFillMetadata()" title="Compila automaticamente Titolo, Artista, Album e YouTube ID leggendoli dai file">🪄 Compila dai File</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field-col">
+            <label>Titolo:</label>
+            <input type="text" id="metaTitle" placeholder="es. Lontano">
+          </div>
+          <div class="field-col">
+            <label>Artista:</label>
+            <input type="text" id="metaArtist" placeholder="es. Nome Artista">
+          </div>
+        </div>
+        <div class="grid-3" style="margin-top: 10px;">
+          <div class="field-col">
+            <label>Album (opzionale):</label>
+            <input type="text" id="metaAlbum" placeholder="es. Nome Album">
+          </div>
+          <div class="field-col">
+            <label>Durata Rilevata:</label>
+            <div class="duration-badge" id="metaDuration">0s</div>
+          </div>
+          <div class="field-col">
+            <label>Compensazione Acustica:</label>
+            <div class="compensation-box">
+              <div class="offset-badge" id="studioOffsetBadge" title="Calibrazione automatica dell'anticipo vocale">⚡ Auto (Attiva in sync)</div>
+              <button id="btnQuickCalibrate" class="btn-micro" onclick="runAutoCalibration()" title="Analizza il brano prima della sincronizzazione (opzionale)">🔍 Calibra</button>
+            </div>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-top: 10px;">
+          <div class="field-col">
+            <label>Link YouTube / YouTube Music <span class="label-hint">(serve solo per BetterLyrics / Metrolist)</span>:</label>
+            <input type="text" id="metaYoutube" placeholder="Incolla link YouTube o Video ID (11 caratteri)">
+          </div>
+          <div class="field-col">
+            <label>Autori / Parolieri <span class="label-hint">(opzionale, separati da virgola)</span>:</label>
+            <input type="text" id="metaSongwriters" oninput="scheduleOutputsRefresh()" onchange="refreshOutputsFromForm()" placeholder="es. Nome Autore 1, Nome Autore 2">
+          </div>
+        </div>
+        <div class="field-row" style="margin-top: 10px; margin-bottom: 0;">
+          <label>Note / Crediti <span class="label-hint">(opzionale, salvati nei file locali TTML, LRC e YAML)</span>:</label>
+          <input type="text" id="metaNotes" oninput="scheduleOutputsRefresh()" onchange="refreshOutputsFromForm()" placeholder="es. Versione esplicita, seconda voce: ospite...">
+        </div>
+        <div class="outro-credit-row">
+          <label class="checkbox-inline" title="Se c'è spazio alla fine del brano (≥ 0.9s), aggiunge una riga finale entro la durata dell'audio.">
+            <input type="checkbox" id="settingOutroCredits" checked onchange="onOutroCreditsToggle()">
+            <span>✍️ <strong>Mostra testo/crediti nella coda finale del brano</strong> (entro la durata audio)</span>
+          </label>
+          <div class="field-row" style="margin-top: 8px; margin-bottom: 0;">
+            <label>Testo finale personalizzato <span class="label-hint">(lascia vuoto per usare automaticamente Autori o Note)</span>:</label>
+            <input type="text" id="metaOutroText" value="MetroSync Studio" oninput="scheduleOutputsRefresh()" onchange="refreshOutputsFromForm()" placeholder="es. MetroSync Studio  oppure  Testo: Nome Autore">
+          </div>
+        </div>
+      </section>
+
+      <div class="actions-row">
+        <button id="btnSync" class="btn btn-primary" onclick="startSync()" title="Sincronizza parola per parola l'audio con il testo usando l'AI">
+          <span class="icon">⚡</span> AVVIA SYNC
+        </button>
+        <button id="btnPreview" class="btn btn-purple" onclick="openPreview()" disabled title="Guarda e ascolta l'anteprima karaoke stile Metrolist">
+          <span class="icon">✨</span> ANTEPRIMA
+        </button>
+        <button id="btnPublish" class="btn btn-teal" onclick="publishLRCLIB()" disabled title="Invia il testo sincronizzato su LRCLIB (nessuna chiave richiesta)">
+          <span class="icon">🚀</span> PUBBLICA LRCLIB
+        </button>
+        <button id="btnPublishBL" class="btn btn-orange" onclick="publishBetterLyrics()" disabled title="Invia il testo TTML parola per parola su BetterLyrics / Unison (richiede link YouTube)">
+          <span class="icon">🎵</span> BETTERLYRICS
+        </button>
+        <button id="btnCopy" class="btn btn-green" onclick="copyLyrics()" disabled title="Copia negli appunti il testo LRC sincronizzato">
+          <span class="icon">📋</span> COPIA
+        </button>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-bar-bg">
+          <div id="progressBar" class="progress-bar-fill"></div>
+        </div>
+        <span id="progressText" class="progress-pct">0%</span>
+      </div>
+
+      <section class="log-card">
+        <div class="log-header">
+          <span>Log di Elaborazione</span>
+          <button class="btn-clear" onclick="clearLog()">Pulisci</button>
+        </div>
+        <pre id="logConsole" class="log-console"></pre>
+      </section>
+    </main>
+
+    <!-- TAB 2: SETTINGS -->
+    <main id="tabSettings" class="tab-content">
+      <div class="settings-subnav" role="tablist">
+        <button class="settings-subtab-btn active" data-subtab="models" onclick="switchSettingsSubTab('models')">
+          <span>🧠</span> Modelli AI &amp; Lingua
+        </button>
+        <button class="settings-subtab-btn" data-subtab="audio" onclick="switchSettingsSubTab('audio')">
+          <span>🎛️</span> Audio, Demucs &amp; Calibrazione
+        </button>
+        <button class="settings-subtab-btn" data-subtab="auth" onclick="switchSettingsSubTab('auth')">
+          <span>🔑</span> Autenticazione &amp; Chiavi Pubblicazione
+        </button>
+      </div>
+
+      <!-- SUB-TAB 1: MODELLI AI & LINGUA -->
+      <div id="settingsSubModels" class="settings-subtab-pane active">
+        <div class="grid-2 settings-top-pair">
+          <section class="card">
+            <h2 class="card-title">🌐 Lingua della Canzone</h2>
+            <p class="card-desc">Scegli "Auto / Multilingua" per canzoni con ritornelli o versi bilingue.</p>
+            <select id="settingLanguage" class="select-box" onchange="autoSaveSettings()"></select>
+          </section>
+
+          <section class="card">
+            <h2 class="card-title">📄 Formato Testo Locale</h2>
+            <div class="radio-row">
+              <label class="radio-label">
+                <input type="radio" name="settingFormat" value="metrolist" onchange="autoSaveSettings()" checked>
+                <span>🎯 <strong>Metrolist Duet</strong> (Righe 1:1, tag {agent:v1}/{agent:v2} e {bg})</span>
+              </label>
+              <label class="radio-label" style="margin-top: 8px;">
+                <input type="radio" name="settingFormat" value="normale" onchange="autoSaveSettings()">
+                <span>🌐 <strong>Normale Standard</strong> (con pause strumentali)</span>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <section class="card settings-card-grow">
+          <div class="card-title-row">
+            <h2 class="card-title">🧠 Pesi Modello Whisper (.pt)</h2>
+            <span class="settings-tip-pill">Usa <strong>large-v3</strong> (massima precisione) o <strong>distil-it-v0.2</strong> (italiano rapido)</span>
+          </div>
+
+          <div class="whisper-picker-grid">
+            <select id="settingModelSelect" class="select-box" onchange="onModelPresetChange(this.value)"></select>
+            <div class="input-browse">
+              <input type="text" id="settingModel" readonly>
+              <button class="btn btn-secondary" onclick="browseModel()">Sfoglia...</button>
+            </div>
+          </div>
+
+          <div class="model-dl-panel">
+            <div class="model-dl-header">
+              <div>
+                <strong>📥 Scarica Modelli Whisper in Locale (cartella <code>models/</code>)</strong>
+                <p class="card-desc" style="margin-bottom:0;">Download ufficiale con verifica integrità SHA-256 inclusa per lavorare anche offline.</p>
+              </div>
+              <button id="btnDownloadAllModels" class="btn-cyan-outline" onclick="downloadAllMissingModels()">⬇️ Scarica Tutti i Mancanti</button>
+            </div>
+            <div id="modelDownloadList" class="model-dl-list"></div>
+            <div id="modelDownloadProgressBox" class="model-dl-progress" style="display:none;">
+              <div class="model-dl-prog-top">
+                <span id="modelDlStatusText">Preparazione download...</span>
+                <button class="btn-micro btn-danger-micro" onclick="cancelModelDownload()">✕ Annulla</button>
+              </div>
+              <div class="progress-bar-bg">
+                <div id="modelDlProgressBar" class="progress-bar-fill"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- SUB-TAB 2: AUDIO, DEMUCS & CALIBRAZIONE -->
+      <div id="settingsSubAudio" class="settings-subtab-pane">
+        <section class="card">
+          <h2 class="card-title">🎙️ Motore Audio &amp; Separazione Vocale</h2>
+          <div class="toggle-row">
+            <div>
+              <strong>Isola la voce con Demucs (GPU CUDA)</strong>
+              <p class="card-desc">Rimuove batteria e bassi per calcolare i millisecondi sulla sola voce a cappella.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="settingDemucs" onchange="autoSaveSettings()">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="model-dl-item demucs-box" style="margin-top: 12px;">
+            <div class="model-dl-info">
+              <div class="model-dl-title-row">
+                <span class="model-dl-name">Modello Isolamento Vocale Demucs</span>
+                <span id="demucsModelBadge" class="sr-pill sr-pill-match">Verifica...</span>
+              </div>
+              <div class="model-dl-desc"><strong>htdemucs_ft</strong> (Fine-Tuned) offre una separazione vocale più pulita (+0.27 dB SDR rispetto a htdemucs), ideale per voci con basi dense (~4x più lento).</div>
+            </div>
+            <div class="model-dl-actions">
+              <select id="settingDemucsModel" class="select-box" style="width:auto; min-width:240px; max-width:340px;" onchange="onDemucsModelChange()">
+                <option value="htdemucs">htdemucs (Standard Veloce)</option>
+                <option value="htdemucs_ft">htdemucs_ft (Massima Precisione Vocale • 4x più lento)</option>
+              </select>
+              <button id="btnDownloadDemucsFt" class="btn-cyan-outline" onclick="downloadDemucsModel('htdemucs_ft')">⬇️ Scarica htdemucs_ft</button>
+            </div>
+          </div>
+
+          <div class="toggle-row" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1f2333;">
+            <div>
+              <strong>Filtro Silero VAD</strong>
+              <p class="card-desc" style="margin-bottom:0;">Rileva il silenzio vocale (consigliato disattivato per massima velocità).</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="settingVAD" onchange="autoSaveSettings()">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2 class="card-title">⏱️ Compensazione Temporale &amp; Calibrazione Intelligente</h2>
+          <div class="toggle-row">
+            <div>
+              <strong>Auto-Compensazione Intelligente (Consigliato)</strong>
+              <p class="card-desc">Misura la discrepanza statistica tra Whisper e i transienti vocali del brano per evitare l'accensione anticipata delle parole.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="settingAutoOffset" checked onchange="toggleAutoOffset()">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div id="autoOffsetInfoBox" class="auto-offset-box" style="margin-top: 12px;">
+            <div class="auto-offset-status">
+              <span>Stato Acustico:</span>
+              <span id="autoOffsetBadge" class="offset-badge">Non ancora analizzato</span>
+            </div>
+            <button id="btnCalibrate" class="btn-cyan-outline" onclick="runAutoCalibration()">
+              <span class="icon">🔍</span> Analizza Brano e Calibra Ora
+            </button>
+          </div>
+
+          <div style="margin-top: 16px;">
+            <div class="slider-header">
+              <span id="offsetSliderTitle">Regolazione Fine Manuale (Offset Addizionale):</span>
+              <span style="display:inline-flex; align-items:center; gap:8px;">
+                <span id="offsetValue" class="neon-val">0 ms (0.00 s)</span>
+                <button type="button" id="btnResetManualOffset" class="btn-micro" onclick="resetManualOffset()" title="Riporta offset manuale a 0 ms">↺ 0ms</button>
+              </span>
+            </div>
+            <input type="range" id="settingOffset" min="-800" max="800" value="0" step="10" oninput="updateOffsetLabel(this.value)">
+          </div>
+        </section>
+      </div>
+
+      <!-- SUB-TAB 3: AUTENTICAZIONE & CHIAVI PUBBLICAZIONE -->
+      <div id="settingsSubAuth" class="settings-subtab-pane">
+        <section class="card" id="authSettingsCard">
+          <div class="card-title-row">
+            <h2 class="card-title">🔑 Autenticazione &amp; Chiavi per la Pubblicazione</h2>
+            <button class="btn-micro" onclick="testPublishingAuth()" id="btnTestPubAuth">🔍 Testa Connessione &amp; Auth</button>
+          </div>
+
+          <div class="auth-guide-box">
+            <div class="auth-guide-title">📖 Guida semplice: servono chiavi o account per pubblicare?</div>
+            <div class="auth-guide-grid">
+              <div class="auth-guide-item">
+                <div class="auth-guide-head">
+                  <span class="service-pill service-unison">🎵 BetterLyrics / Unison</span>
+                  <span class="guide-badge guide-badge-key">Chiave automatica o importabile</span>
+                </div>
+                <ul>
+                  <li><strong>Non serve account email/password.</strong> Unison usa una chiave personale salvata sul tuo PC.</li>
+                  <li><strong>Sei nuovo?</strong> Al primo invio MetroSync crea la chiave da solo (o premi <em>🔄 Nuova Chiave</em>). Ricordati di premere <em>📤 Esporta Backup</em>!</li>
+                  <li><strong>Usi già Better Lyrics sul browser?</strong> Opzioni estensione → <strong>Identity</strong> → <strong>Export Identity</strong> (o <a href="#" class="ext-link" onclick="openExtLink('https://unison.betterlyrics.org'); return false;">unison.betterlyrics.org</a>) → carica il <code>.json</code> qui con <strong>📥 Importa JSON / PEM</strong>.</li>
+                  <li><strong>Bearer Token:</strong> quasi mai necessario (solo server o proxy privati protetti).</li>
+                </ul>
+              </div>
+              <div class="auth-guide-item">
+                <div class="auth-guide-head">
+                  <span class="service-pill service-lrclib">🚀 LRCLIB</span>
+                  <span class="guide-badge guide-badge-free">Nessuna chiave richiesta</span>
+                </div>
+                <ul>
+                  <li><strong>Non serve nessun account e nessuna API key</strong> per pubblicare su <a href="#" class="ext-link" onclick="openExtLink('https://lrclib.net'); return false;">lrclib.net</a>.</li>
+                  <li><strong>Come funziona?</strong> Premendo <em>PUBBLICA LRCLIB</em>, MetroSync risolve automaticamente il <em>PoW Challenge</em> in pochi secondi.</li>
+                  <li><strong>Token o URL diversi:</strong> solo per server LRCLIB privati oppure se possiedi già un <code>X-Publish-Token</code> manuale.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="auth-services-stack">
+            <!-- BETTERLYRICS / UNISON -->
+            <div class="auth-subpanel">
+              <div class="auth-subpanel-header">
+                <span class="service-pill service-unison">🎵 BetterLyrics / Unison (Identità Curatore)</span>
+                <span id="unisonAuthBadge" class="offset-badge">Verifica...</span>
+              </div>
+
+              <div class="keyid-row">
+                <span class="keyid-label">Tuo ID Curatore (Key ID):</span>
+                <code id="unisonKeyIdDisplay" class="keyid-code">Non generata (creata al primo invio o tramite importa)</code>
+                <button class="btn-micro" onclick="copyUnisonKeyId()" id="btnCopyKeyId" title="Copia Key ID completo">📋 Copia</button>
+                <button class="btn-micro" onclick="openCuratorProfile()" id="btnOpenCurator" title="Apri il tuo profilo pubblico su unison.betterlyrics.org">🌐 Profilo</button>
+              </div>
+
+              <div class="auth-btn-group">
+                <button class="btn-micro" onclick="importUnisonIdentityFile()" title="Carica un file .json esportato da Better Lyrics o da un backup MetroSync">📥 Importa JSON / PEM</button>
+                <button class="btn-micro" onclick="togglePasteIdentityBox()" title="Incolla direttamente il contenuto JSON o PEM della chiave">📝 Incolla Chiave / JSON</button>
+                <button class="btn-micro" onclick="exportUnisonIdentity('metrosync')" id="btnExportUnisonNative" title="Salva una copia di sicurezza della tua chiave">📤 Esporta Backup</button>
+                <button class="btn-micro" onclick="exportUnisonIdentity('betterlyrics_jwk')" id="btnExportUnisonJwk" title="Esporta nel formato JWK compatibile con l'estensione browser Better Lyrics">🌐 Esporta per Browser</button>
+                <button class="btn-micro" onclick="generateNewUnisonIdentity()" title="Crea una nuova identità (nuovo Key ID)">🔄 Nuova Chiave</button>
+                <button class="btn-micro btn-danger-micro" onclick="deleteUnisonIdentity()" id="btnDeleteUnisonId" title="Elimina la chiave salvata su questo PC">🗑️ Rimuovi</button>
+              </div>
+
+              <div id="pasteIdentityBox" class="paste-identity-box" style="display:none;">
+                <label>Incolla qui il contenuto di <code>unison_identity.json</code>, il JSON esportato da Better Lyrics o una chiave privata ECDSA P-256 (PEM):</label>
+                <textarea id="pasteIdentityText" rows="3" placeholder='{"key_id": "...", "private_key_pem": "-----BEGIN PRIVATE KEY-----..."} oppure JWK con "d", "x", "y"'></textarea>
+                <div class="paste-identity-actions">
+                  <button class="btn btn-primary" onclick="applyPastedUnisonIdentity()">✅ Applica Identità</button>
+                  <button class="btn btn-secondary" onclick="togglePasteIdentityBox(false)">Annulla</button>
+                </div>
+              </div>
+
+              <div class="grid-2" style="margin-top: 8px; align-items: end;">
+                <div class="field-col">
+                  <label>Nome promemoria locale <span class="label-hint">(opzionale, visibile solo a te)</span>:</label>
+                  <input type="text" id="pubUnisonLabel" placeholder="es. Il mio profilo principale" onchange="savePublishingConfig()">
+                </div>
+                <div class="field-col">
+                  <details class="auth-advanced-details" style="margin-top:0;" ontoggle="scheduleWindowFit(true)">
+                    <summary>⚙️ Impostazioni Avanzate Unison (server privati / proxy)</summary>
+                    <div class="grid-2" style="margin-top: 8px;">
+                      <div class="field-col">
+                        <label>Endpoint URL Unison:</label>
+                        <input type="text" id="pubUnisonUrl" placeholder="https://unison.betterlyrics.org" onchange="savePublishingConfig()">
+                      </div>
+                      <div class="field-col">
+                        <label>Modalità Auth Unison:</label>
+                        <select id="pubUnisonAuthMode" class="select-box" onchange="onPublishingAuthModeChange()">
+                          <option value="ecdsa_identity">Firma ECDSA P-256 (Standard Unison)</option>
+                          <option value="ecdsa_plus_bearer">Firma ECDSA + Bearer Token</option>
+                        </select>
+                      </div>
+                      <div class="field-col" id="unisonBearerWrap">
+                        <label>Bearer / API Token Unison:</label>
+                        <div class="secret-input-wrap">
+                          <input type="password" id="pubUnisonBearer" placeholder="Vuoto se non richiesto" onchange="savePublishingConfig()">
+                          <button type="button" class="btn-eye" onclick="toggleSecretVisibility('pubUnisonBearer', this)" title="Mostra/Nascondi">👁️</button>
+                        </div>
+                      </div>
+                      <div class="field-col">
+                        <label>Client Identifier / User-Agent:</label>
+                        <input type="text" id="pubUnisonClientId" placeholder="MetroSync-Studio/1.0.0 (...)" onchange="savePublishingConfig()">
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+
+            <!-- LRCLIB -->
+            <div class="auth-subpanel">
+              <div class="auth-subpanel-header">
+                <span class="service-pill service-lrclib">🚀 LRCLIB (Pubblicazione Standard senza Chiavi)</span>
+                <span class="offset-badge calibrated">✅ Pronto all'uso</span>
+              </div>
+
+              <div class="grid-2" style="align-items: end;">
+                <div class="field-col">
+                  <label>Modalità Autenticazione LRCLIB:</label>
+                  <select id="pubLrcAuthMode" class="select-box" onchange="onPublishingAuthModeChange()">
+                    <option value="auto_pow">PoW Challenge Automatico — Nessuna chiave richiesta (Consigliato)</option>
+                    <option value="manual_token">X-Publish-Token Manuale (Avanzato)</option>
+                    <option value="bearer_auth">Bearer Token / API Key (Server LRCLIB privati)</option>
+                  </select>
+                </div>
+                <div class="field-col">
+                  <details class="auth-advanced-details" id="lrclibAdvancedDetails" style="margin-top:0;" ontoggle="scheduleWindowFit(true)">
+                    <summary>⚙️ Impostazioni Avanzate LRCLIB (Token, URL privato, Client ID)</summary>
+                    <div class="grid-2" style="margin-top: 8px;">
+                      <div class="field-col">
+                        <label>Endpoint URL LRCLIB:</label>
+                        <input type="text" id="pubLrcUrl" placeholder="https://lrclib.net" onchange="savePublishingConfig()">
+                      </div>
+                      <div class="field-col" id="lrcTokenWrap">
+                        <label id="lrcTokenLabel">Token LRCLIB (opzionale):</label>
+                        <div class="secret-input-wrap">
+                          <input type="password" id="pubLrcToken" placeholder="Solo per token manuale / server privato" onchange="savePublishingConfig()">
+                          <button type="button" class="btn-eye" onclick="toggleSecretVisibility('pubLrcToken', this)" title="Mostra/Nascondi">👁️</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field-row" style="margin-top: 8px; margin-bottom: 0;">
+                      <label>Client Identifier (User-Agent / Lrclib-Client):</label>
+                      <input type="text" id="pubLrcClientId" placeholder="MetroSync-Studio/1.0.0 (...)" onchange="savePublishingConfig()">
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="auth-footer-bar">
+            <div id="pubTestResult" class="pub-test-result"></div>
+            <div class="auth-footer-actions">
+              <button class="btn btn-secondary" onclick="resetPublishingConfig()">↺ Ripristina Default</button>
+              <button class="btn btn-primary" onclick="savePublishingConfig(true)">💾 Salva Configurazione</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODALE RICERCA & DOWNLOAD TESTI ONLINE -->
+    <div id="searchLyricsModal" class="studio-modal">
+      <div class="studio-modal-card">
+        <div class="studio-modal-header">
+          <div class="preview-title">
+            <span class="pulse-dot"></span>
+            <strong>Cerca Testo Online (Importa come .txt o scarica per Metrolist)</strong>
+          </div>
+          <button class="btn-close" onclick="closeSearchLyricsModal()">Chiudi ✕</button>
+        </div>
+
+        <div class="search-help-strip">
+          <span><strong>1.</strong> Cerca per Titolo / Artista</span>
+          <span>•</span>
+          <span><strong>2.</strong> Scegli un risultato a sinistra</span>
+          <span>•</span>
+          <span><strong>3.</strong> Clicca <strong>Importa come Testo (.txt)</strong> per sincronizzarlo con l'AI, oppure scarica i file già pronti</span>
+        </div>
+
+        <div class="search-form-bar">
+          <input type="text" id="searchTitle" placeholder="Titolo canzone...">
+          <input type="text" id="searchArtist" placeholder="Artista...">
+          <input type="text" id="searchYoutube" placeholder="Link o ID YouTube (opzionale)">
+          <select id="searchSource" class="select-box">
+            <option value="all">Tutte le fonti (Unison + LRCLIB)</option>
+            <option value="unison">Solo BetterLyrics / Unison</option>
+            <option value="lrclib">Solo LRCLIB</option>
+          </select>
+          <button id="btnRunSearch" class="btn btn-primary" onclick="runOnlineLyricsSearch()">🔍 Cerca Online</button>
+        </div>
+
+        <div id="searchStatusBanner" class="search-status-banner">Inserisci titolo/artista o YouTube ID e avvia la ricerca.</div>
+
+        <div class="search-body-grid">
+          <div id="searchResultsList" class="search-results-list"></div>
+
+          <div class="search-preview-pane">
+            <div class="preview-fmt-tabs">
+              <button class="fmt-tab active" onclick="switchSearchPreviewTab('plain', this)">Testo Pulito (.txt)</button>
+              <button class="fmt-tab" onclick="switchSearchPreviewTab('lrc', this)">Metrolist LRC</button>
+              <button class="fmt-tab" onclick="switchSearchPreviewTab('ttml', this)">TTML</button>
+              <button class="fmt-tab" onclick="switchSearchPreviewTab('lyricsfile', this)">Lyricsfile YAML</button>
+            </div>
+            <div id="searchDetailMeta" class="search-detail-meta">Seleziona un risultato a sinistra per vedere l'anteprima del testo.</div>
+            <pre id="searchPreviewCode" class="search-preview-code"></pre>
+
+            <div class="search-download-bar">
+              <button id="btnImportAsTxt" class="btn btn-primary btn-import-txt-hero" onclick="importSelectedLyricsAsTxt()" disabled title="Carica il testo pulito direttamente nel programma come se avessi aperto un file .txt, pronto per AVVIA SYNC">
+                📝 Importa nel Programma come Testo (.txt) per Sync AI
+              </button>
+
+              <div class="synced-dl-box">
+                <div class="field-col" style="flex:1;">
+                  <label>Oppure scarica in locale nel formato Metrolist / MetroSync:</label>
+                  <select id="downloadFormatSelect" class="select-box">
+                    <option value="metrolist_bundle">📦 Pacchetto Completo (.lrc + .ttml + .lyricsfile.yaml)</option>
+                    <option value="lrc">🎯 Solo LRC Metrolist (.lrc)</option>
+                    <option value="ttml">🍎 Solo TTML BetterLyrics / Metrolist (.ttml)</option>
+                    <option value="yaml">📄 Solo Lyricsfile YAML (.lyricsfile.yaml)</option>
+                    <option value="txt">📝 Salva solo file .txt su disco (.txt)</option>
+                  </select>
+                </div>
+                <div class="search-download-actions">
+                  <button id="btnDlAuto" class="btn btn-teal" onclick="downloadSelectedLyrics('auto_song_folder')" disabled>💾 Scarica &amp; Carica</button>
+                  <button id="btnDlAs" class="btn btn-secondary" onclick="downloadSelectedLyrics('save_dialog')" disabled>📁 Salva con Nome...</button>
+                  <button id="btnDlStudioOnly" class="btn btn-purple" onclick="downloadSelectedLyrics('load_only')" disabled>⚡ Usa Sincronizzato</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODALE ESPORTAZIONE RAPIDA FILE LOCALI -->
+    <div id="exportModal" class="studio-modal">
+      <div class="studio-modal-card studio-modal-sm">
+        <div class="studio-modal-header">
+          <div class="preview-title">
+            <strong>💾 Esporta Testo in Locale (Metrolist / MetroSync)</strong>
+          </div>
+          <button class="btn-close" onclick="closeExportModal()">Chiudi ✕</button>
+        </div>
+        <div style="padding: 16px;">
+          <p class="card-desc">Esporta il testo attualmente caricato o sincronizzato nel formato richiesto da MetroSync e compatibile con Metrolist / BetterLyrics.</p>
+          <div class="field-row" style="margin-top: 10px;">
+            <label>Formato di esportazione:</label>
+            <select id="exportFormatSelect" class="select-box">
+              <option value="metrolist_bundle">📦 Pacchetto Completo (.lrc + .ttml + .lyricsfile.yaml)</option>
+              <option value="lrc">🎯 LRC Metrolist (.lrc)</option>
+              <option value="ttml">🍎 TTML BetterLyrics / Metrolist (.ttml)</option>
+              <option value="yaml">📄 Lyricsfile YAML (.lyricsfile.yaml)</option>
+              <option value="txt">📝 Testo Grezzo (.txt)</option>
+            </select>
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+            <button class="btn btn-secondary" onclick="closeExportModal()">Annulla</button>
+            <button class="btn btn-primary" onclick="runExportCurrentLyrics()">💾 Esporta File...</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANTEPRIMA METROLIST -->
+    <div id="previewModal" class="preview-modal">
+      <div class="preview-stage-bg" aria-hidden="true">
+        <div class="preview-orb preview-orb-1"></div>
+        <div class="preview-orb preview-orb-2"></div>
+        <div class="preview-orb preview-orb-3"></div>
+        <div class="preview-spotlight"></div>
+      </div>
+
+      <div class="preview-header">
+        <div class="preview-title">
+          <span class="pulse-dot"></span>
+          <div class="eq-bars" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div class="preview-song-meta">
+            <strong id="prevSongTitle">Anteprima Traccia</strong>
+            <span id="prevSongSub" class="preview-song-sub">Word-by-Word • Metrolist Stage</span>
+          </div>
+        </div>
+        <div class="preview-header-right">
+          <span class="preview-kbd-hint">Spazio Play • ◀/▶ ±5s • Esc Chiudi</span>
+          <button class="btn-close" onclick="closePreview()">Chiudi ✕</button>
+        </div>
+      </div>
+
+      <div id="silenceCountdown" class="silence-countdown">
+        <div class="silence-pill-top">
+          <span class="silence-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span id="silenceText">⏳ PAUSA STRUMENTALE • Attacco tra 0.0s</span>
+        </div>
+        <div class="silence-track">
+          <div id="silenceFill" class="silence-fill"></div>
+        </div>
+      </div>
+
+      <div id="lyricsViewport" class="lyrics-viewport"></div>
+
+      <div class="preview-controls">
+        <div class="preview-transport">
+          <button class="btn-skip" onclick="skipPreview(-5)" title="Indietro 5 secondi">↺ 5s</button>
+          <button id="btnPlayPause" class="btn-circle" onclick="togglePlayPause()">▶</button>
+          <button class="btn-skip" onclick="skipPreview(5)" title="Avanti 5 secondi">5s ↻</button>
+        </div>
+        <div class="timeline-container">
+          <span id="lblCurTime">00:00</span>
+          <input type="range" id="seekSlider" min="0" max="1000" value="0" oninput="onSeekInput(this.value)">
+          <span id="lblTotTime">00:00</span>
+        </div>
+        <button id="btnPreviewSpeed" class="btn-speed" onclick="cyclePreviewSpeed()" title="Cambia velocità di riproduzione">1.0x</button>
+      </div>
+
+      <audio id="html5Audio" style="display: none;"></audio>
+    </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
