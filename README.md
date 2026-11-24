@@ -1,69 +1,93 @@
 # MetroSync Studio Pro
 
-Applicazione desktop Windows per creare, cercare, scaricare e pubblicare testi sincronizzati **parola per parola** e **riga per riga** compatibili con [**Metrolist**](https://github.com/metrolistgroup/metrolist), **BetterLyrics / Unison** e **LRCLIB**.
+**English** | [Italiano](README.it.md)
 
-## Funzionalità Principali
+[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/puccilorenzo21/MetroSync)
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](requirements.txt)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Compatible: Metrolist](https://img.shields.io/badge/Compatible-Metrolist%20%7C%20BetterLyrics%20%7C%20LRCLIB-8A2BE2)](https://github.com/metrolistgroup/metrolist)
 
-- **Sincronizzazione AI Ibrida ad Alta Precisione**: isolamento vocale con **Demucs**, macro-ancoraggio Whisper, forced alignment fonetico CTC (`MMS_FA`) e raffinamento acustico multi-banda a `1 ms`.
-- **Ricerca & Download Testi Online**: cerca direttamente dall'app su **BetterLyrics / Unison** e **LRCLIB**, visualizza l'anteprima convertita e scarica in locale nei formati **Metrolist LRC**, **TTML**, **Lyricsfile YAML** o **Testo grezzo (`.txt`)** pronto per la sincronizzazione AI.
-- **Gestione Autenticazione Servizi di Pubblicazione**:
-  - **BetterLyrics / Unison**: importa/esporta identità ECDSA P-256 (`unison_identity.json` o formato JWK BetterLyrics), genera nuove chiavi, imposta etichette profilo, endpoint personalizzati e Bearer Token opzionale.
-  - **LRCLIB**: scegli tra PoW Challenge automatico (`lrclib.net`), `X-Publish-Token` manuale, Bearer Token per istanze private, endpoint custom e `User-Agent` personalizzato.
-- **Anteprima Karaoke Live stile Metrolist**: effetto wipe parola per parola, parole allungate, pause intra-riga e countdown pause strumentali.
-- **Esportazione & Progetti `.metro`**: salva/ricarica progetti completi ed esporta i file locali in un clic.
+A Windows desktop studio to create, search, download, and publish **word-by-word** and **line-by-line** synchronized lyrics compatible with [**Metrolist**](https://github.com/metrolistgroup/metrolist), **BetterLyrics / Unison**, and **LRCLIB**.
 
-## Requisiti & Installazione
+<!-- TODO: Replace with a real screenshot or GIF of the Live Karaoke Preview / Editor -->
+<!-- ![MetroSync Studio Pro Preview](docs/preview.png) -->
 
-1. **Python 3.12** (consigliato `py -3.12` su Windows).
-2. **FFmpeg & yt-dlp**: su Windows, se non sono già presenti nel `PATH`, MetroSync scarica automaticamente le build ufficiali verificate (`yt-dlp/yt-dlp` e `yt-dlp/FFmpeg-Builds`) nella sottocartella locale `tools/` alla prima necessità.
-3. Installa PyTorch (con CUDA se hai una GPU NVIDIA):
+---
+
+## Key Features
+
+- **High-Precision Hybrid AI Synchronization**: vocal isolation with **Demucs**, **Whisper** macro-anchoring, **CTC phonetic forced alignment (`MMS_FA`)**, and `1 ms` multi-band acoustic refinement.
+- **Online Lyrics Search & Download**: search directly from the app on **BetterLyrics / Unison** and **LRCLIB**, preview converted output, and download locally as **Metrolist LRC**, **TTML**, **Lyricsfile YAML**, or **plain text (`.txt`)** ready for AI alignment.
+- **Publishing Service Authentication**:
+  - **BetterLyrics / Unison**: import/export ECDSA P-256 identities (`unison_identity.json` or BetterLyrics JWK format), generate new keys, configure profile labels, custom endpoints, and optional Bearer Tokens.
+  - **LRCLIB**: supports automatic PoW Challenge (`lrclib.net`), manual `X-Publish-Token`, Bearer Token for private instances, custom endpoints, and custom `User-Agent`.
+- **Metrolist-Style Live Karaoke Preview**: word-by-word wipe effect, elongated word handling, intra-line pauses, and instrumental countdowns.
+- **One-Click Export & `.metro` Projects**: save and reload full projects (audio link, metadata, settings, generated outputs) and export local files in one click.
+
+---
+
+## Requirements & Installation
+
+1. **Python 3.12** (`py -3.12` recommended on Windows).
+2. **FFmpeg & yt-dlp**: on Windows, if not already in your `PATH`, MetroSync automatically downloads verified official builds (`yt-dlp/yt-dlp` and `yt-dlp/FFmpeg-Builds`) into the local `tools/` subfolder when first needed.
+3. Install PyTorch (with CUDA if you have an NVIDIA GPU):
    ```powershell
    py -3.12 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
    ```
-4. Installa le dipendenze del progetto:
+4. Install project dependencies:
    ```powershell
    py -3.12 -m pip install -r requirements.txt
    ```
-5. Verifica il rilevamento GPU CUDA:
+5. Verify CUDA GPU detection:
    ```powershell
    py -3.12 app\check_gpu.py
    ```
-6. *(Consigliato per modalità offline)* I pesi Whisper (`.pt`) vanno nella cartella `models/` (puoi scaricarli direttamente dall'app in **Impostazioni & AI**).
+6. *(Recommended for offline mode)* Place Whisper weights (`.pt`) in the `models/` folder (or download them directly inside the app under **Settings & AI**).
 
-## Avvio
+---
 
-Avvia l'app con doppio clic su `MetroSync.bat` (o `MetroSync.lnk`) oppure da terminale:
+## Launch
+
+Double-click `MetroSync.bat` (or `MetroSync.lnk`), or run from terminal:
 
 ```powershell
 py -3.12 app\main.py
 ```
 
-## Struttura delle Cartelle
+---
 
-- `app/` — codice Python (`main.py`, `check_gpu.py`) e interfaccia web (`index.html`, `script.js`, `style.css`).
-- `models/` — pesi dei modelli Whisper (`.pt`).
-- `output/` — sottocartelle per ciascun brano (`output/<Artista - Titolo>/`) contenenti i file sincronizzati (`.lrc`, `.ttml`, `.lyricsfile.yaml`).
-- `tools/` — eseguibili ufficiali `yt-dlp.exe` e `ffmpeg.exe` (scaricati automaticamente su richiesta).
+## Folder Structure
 
-## Formati Generati e Compatibilità Metrolist
+- `app/` — Python backend (`main.py`, `check_gpu.py`) and web UI (`index.html`, `script.js`, `style.css`).
+- `models/` — Whisper model weights (`.pt`).
+- `output/` — per-track output folders (`output/<Artist - Title>/`) containing synchronized files (`.lrc`, `.ttml`, `.lyricsfile.yaml`).
+- `tools/` — official `yt-dlp.exe` and `ffmpeg.exe` binaries (auto-downloaded on demand).
 
-I file generati rispettano le specifiche di [**Metrolist**](https://github.com/metrolistgroup/metrolist) (`https://github.com/metrolistgroup/metrolist`) per la riproduzione karaoke parola per parola e riga per riga:
+---
 
-- **`.lrc` (Metrolist Duet / Normale)**: include header metadati (`[ti:]`, `[ar:]`, `[al:]`, `[au:]`, `[length:]`), tag vocali `{agent:v1}` / `{agent:v2}` / `{bg}` e timing parola per parola `<parola:inizio:fine|...>`.
-- **`.ttml`**: formato Apple Music / BetterLyrics / Metrolist (`itunes:timing="Word"` o `"Line"`).
-- **`.lyricsfile.yaml`**: formato Lyricsfile 1.0 YAML compatibile con LRCLIB.
-- **`.metro`**: file progetto JSON con audio collegato, metadati, impostazioni e output generati.
+## Supported Formats & Metrolist Compatibility
 
-## Note di Sicurezza prima di Condividere
+Generated files follow [**Metrolist**](https://github.com/metrolistgroup/metrolist) specifications for word-by-word and line-by-line karaoke playback:
 
-- **Non condividere mai `unison_identity.json`**: contiene la tua chiave privata ECDSA P-256 per pubblicare su Unison. È già escluso automaticamente tramite `.gitignore`.
-- **`config.json`** contiene preferenze locali ed eventuali token personalizzati ed è anch'esso escluso da `.gitignore`.
+- **`.lrc` (Metrolist Duet / Standard)**: includes metadata headers (`[ti:]`, `[ar:]`, `[al:]`, `[au:]`, `[length:]`), vocal tags (`{agent:v1}`, `{agent:v2}`, `{bg}`), and word-level timing `<word:start:end|...>`.
+- **`.ttml`**: Apple Music / BetterLyrics / Metrolist format (`itunes:timing="Word"` or `"Line"`).
+- **`.lyricsfile.yaml`**: Lyricsfile 1.0 YAML format compatible with LRCLIB.
+- **`.metro`**: JSON project file storing linked audio, metadata, settings, and generated outputs.
 
-## Licenza & Obbligo di Citazione
+---
 
-Questo progetto è distribuito gratuitamente sotto **Licenza MIT** ([LICENSE](LICENSE)).
+## Security Notes Before Sharing
 
-Puoi usare, modificare e ridistribuire il software liberamente, **a condizione di mantenere l'avviso di copyright e citare l'autore originale**:
+- **Never share `unison_identity.json`**: it contains your ECDSA P-256 private key for publishing to Unison (already excluded via `.gitignore`).
+- **`config.json`** stores local preferences and optional custom tokens (also excluded via `.gitignore`).
 
-- **Autore**: `puccilorenzo21`
-- **Repository originale**: https://github.com/puccilorenzo21/MetroSync
+---
+
+## License & Attribution
+
+Distributed under the **MIT License** ([LICENSE](LICENSE)).
+
+You are free to use, modify, and redistribute this software, **provided that you keep the copyright notice and credit the original author**:
+
+- **Author**: `puccilorenzo21`
+- **Original repository**: https://github.com/puccilorenzo21/MetroSync
